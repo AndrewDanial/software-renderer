@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 glam = "0.30.4"
+raylib = { version = "5.5.1", features = [] }
