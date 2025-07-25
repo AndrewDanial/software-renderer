@@ -195,12 +195,10 @@ fn draw(app: &mut App, triangles: Vec<Triangle>) -> Vec<Color> {
     let mut pixel_data = vec![Color::BLACK; (width * height) as usize];
     for i in 0..height {
         for j in 0..width {
-            let mut found_color = false;
             let index = (i * width + j) as usize;
             for triangle in triangles.iter() {
                 if triangle.contains_point(Vec2::new(j as f32, i as f32)) {
                     pixel_data[index] = triangle.color;
-                    found_color = true;
                     break;
                 }
             }
