@@ -1,12 +1,13 @@
-#![allow(warnings)]
 use glam::*;
-use raylib::ffi::ImageCopy;
-use raylib::prelude::*;
+use raylib::prelude::{Image, PixelFormat, RaylibDraw};
 use std::fs::File;
-use std::fs::create_dir;
-use std::fs::remove_dir_all;
 use std::io::prelude::*;
-use std::time::*;
+mod meshes;
+use meshes::triangle::*;
+mod color;
+use color::*;
+
+use crate::meshes::Mesh;
 
 #[derive(Clone, Copy, Debug)]
 struct Header {
@@ -67,7 +68,7 @@ impl BMP {
         }
     }
 
-    pub fn set_pixel_data(&mut self, pixel_data: Vec<Color>) {
+    pub fn set_pixel_data(&mut self, pixel_data: Vec<crate::color::Color>) {
         let mut count = 0;
         self.pixel_data = vec![];
         let width = self.info_header.width;
@@ -110,78 +111,10 @@ impl BMP {
         buffer.extend_from_slice(&info_header.colors_used.to_le_bytes());
         buffer.extend_from_slice(&info_header.important_colors.to_le_bytes());
         // Pixel Data
-        let data = self.pixel_data.clone();
-        for i in data.iter() {
-            buffer.extend_from_slice(&[*i]);
-        }
+        let mut data = self.pixel_data.clone();
+        buffer.append(&mut data);
         file.write_all(buffer.as_slice())?;
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Triangle {
-    a: Vec2,
-    b: Vec2,
-    c: Vec2,
-    color: Color,
-}
-
-impl Triangle {
-    pub fn new(a: Vec2, b: Vec2, c: Vec2, color: Color) -> Self {
-        Self { a, b, c, color }
-    }
-
-    pub fn area(&self, a: Vec2, b: Vec2, c: Vec2) -> f32 {
-        return ((a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y)) / 2.0).abs();
-    }
-
-    pub fn contains_point_area(&self, point: Vec2) -> bool {
-        let a = self.area(self.a, self.b, self.c);
-        let a1 = self.area(point, self.b, self.c);
-        let a2 = self.area(self.a, point, self.c);
-        let a3 = self.area(self.a, self.b, point);
-        return (a1 + a2 + a3 - a).abs() < 0.01;
-    }
-
-    pub fn rotate(&mut self, angle: f32) {
-        let (sin_theta, cos_theta) = angle.sin_cos();
-        let center = Vec2::new(
-            (self.a.x + self.b.x + self.c.x) / 3.,
-            (self.a.y + self.b.y + self.c.y) / 3.,
-        );
-
-        let mut a = self.a - center;
-        a = Mat2::from_cols_array(&[cos_theta, -sin_theta, sin_theta, cos_theta]) * a;
-        a += center;
-        self.a = a;
-        let mut b = self.b - center;
-        b = Mat2::from_cols_array(&[cos_theta, -sin_theta, sin_theta, cos_theta]) * b;
-        b += center;
-        self.b = b;
-        let mut c = self.c - center;
-        c = Mat2::from_cols_array(&[cos_theta, -sin_theta, sin_theta, cos_theta]) * c;
-        c += center;
-        self.c = c;
-    }
-}
-
-impl Color {
-    pub const BLACK: Color = Color::new(0, 0, 0);
-    pub const WHITE: Color = Color::new(255, 255, 255);
-    pub const RED: Color = Color::new(255, 0, 0);
-    pub const GREEN: Color = Color::new(0, 255, 0);
-    pub const BLUE: Color = Color::new(0, 0, 255);
-
-    pub const fn new(r: u8, g: u8, b: u8) -> Self {
-        Self { r, g, b }
     }
 }
 
@@ -205,8 +138,8 @@ impl App {
 
 fn main() {
     let mut app = App::new(Resolution {
-        width: 480,
-        height: 240,
+        width: 640,
+        height: 480,
     });
 
     let mut triangle1 = Triangle::new(
@@ -235,47 +168,41 @@ fn main() {
         .build();
 
     while !rl.window_should_close() {
-        let mut time_accumulation = 0;
-
-        let time1 = Instant::now();
+        // draw to image
         let data = draw(&mut app, vec![triangle1, triangle2, triangle3]);
         app.bmp.set_pixel_data(data);
         app.bmp.write_to_file("image0.bmp").unwrap();
-        println!("{}", app.bmp.pixel_data.len());
+        // display image on raylib window
+        let mut origin = Image::load_image("image0.bmp").unwrap();
+        origin.set_format(PixelFormat::PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+        let texture = rl.load_texture_from_image(&thread, &origin).unwrap();
+        // show fps in title
+        rl.set_window_title(&thread, (1.0 / rl.get_frame_time()).to_string().as_str());
+        let mut d = rl.begin_drawing(&thread);
+        d.clear_background(raylib::prelude::Color::WHITE);
+        d.draw_texture(&texture, 0, 0, raylib::prelude::Color::WHITE);
+        // rotate triangles
         triangle1.rotate(std::f32::consts::TAU / 14.0);
         triangle2.rotate(std::f32::consts::TAU / 300.0);
         triangle3.rotate(std::f32::consts::TAU / 5.0);
-        let time2 = Instant::now();
-        let diff = time2 - time1;
-        time_accumulation += diff.as_millis();
-        let mut origin = Image::load_image("frames/image0.bmp").unwrap();
-        origin.set_format(PixelFormat::PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-        let mut texture = rl.load_texture_from_image(&thread, &origin).unwrap();
-        let mut d = rl.begin_drawing(&thread);
-        // println!("Frame {x} completed in {} ms", diff.as_millis());
-        d.clear_background(raylib::prelude::Color::WHITE);
-        d.draw_texture(&texture, 0, 0, raylib::prelude::Color::WHITE);
-        // texture.update_texture(&app.bmp.pixel_data).unwrap();
-        // println!("Completed in {} ms", time_accumulation);
     }
+    std::fs::remove_file("image0.bmp").unwrap();
 }
 
 fn draw(app: &mut App, triangles: Vec<Triangle>) -> Vec<Color> {
     let width = app.resolution.width;
     let height = app.resolution.height;
-    let mut pixel_data = vec![];
+    let mut pixel_data = vec![Color::BLACK; (width * height) as usize];
     for i in 0..height {
         for j in 0..width {
             let mut found_color = false;
+            let index = (i * width + j) as usize;
             for triangle in triangles.iter() {
-                if triangle.contains_point_area(Vec2::new(j as f32, i as f32)) {
-                    pixel_data.push(triangle.color);
+                if triangle.contains_point(Vec2::new(j as f32, i as f32)) {
+                    pixel_data[index] = triangle.color;
                     found_color = true;
                     break;
                 }
-            }
-            if !found_color {
-                pixel_data.push(Color::BLACK);
             }
         }
     }
