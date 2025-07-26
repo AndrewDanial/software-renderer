@@ -182,7 +182,7 @@ fn main() {
         d.clear_background(raylib::prelude::Color::WHITE);
         d.draw_texture(&texture, 0, 0, raylib::prelude::Color::WHITE);
         // rotate triangles
-        triangle1.rotate(std::f32::consts::TAU / 14.0);
+        triangle1.rotate(0.01);
         triangle2.rotate(std::f32::consts::TAU / 300.0);
         triangle3.rotate(std::f32::consts::TAU / 5.0);
     }
@@ -193,16 +193,16 @@ fn draw(app: &mut App, triangles: Vec<Triangle>) -> Vec<Color> {
     let width = app.resolution.width;
     let height = app.resolution.height;
     let mut pixel_data = vec![Color::BLACK; (width * height) as usize];
-    for i in 0..height {
-        for j in 0..width {
-            let index = (i * width + j) as usize;
-            for triangle in triangles.iter() {
+    for triangle in triangles.iter() {
+        for i in (triangle.aabb.min_y as usize)..(triangle.aabb.max_y as usize) {
+            for j in (triangle.aabb.min_x as usize)..(triangle.aabb.max_x as usize) {
+                let index = i * width as usize + j;
                 if triangle.contains_point(Vec2::new(j as f32, i as f32)) {
                     pixel_data[index] = triangle.color;
-                    break;
                 }
             }
         }
     }
+
     pixel_data
 }

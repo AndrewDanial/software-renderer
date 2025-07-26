@@ -1,13 +1,14 @@
-use glam::*;
-
 use crate::color::Color;
 use crate::meshes::Mesh;
+use crate::meshes::aabb::Aabb;
+use glam::*;
 #[derive(Clone, Copy, Debug)]
 pub struct Triangle {
     pub a: Vec2,
     pub b: Vec2,
     pub c: Vec2,
     pub color: Color,
+    pub aabb: Aabb,
 }
 
 impl Mesh for Triangle {
@@ -22,7 +23,15 @@ impl Mesh for Triangle {
 
 impl Triangle {
     pub fn new(a: Vec2, b: Vec2, c: Vec2, color: Color) -> Self {
-        Self { a, b, c, color }
+        let mut triangle = Triangle {
+            a,
+            b,
+            c,
+            color,
+            aabb: Aabb::default(),
+        };
+        triangle.calculate_aabb();
+        triangle
     }
 
     pub fn area(&self, a: Vec2, b: Vec2, c: Vec2) -> f32 {
@@ -48,5 +57,30 @@ impl Triangle {
         c = Mat2::from_cols_array(&[cos_theta, -sin_theta, sin_theta, cos_theta]) * c;
         c += center;
         self.c = c;
+        self.calculate_aabb();
+    }
+
+    pub fn calculate_aabb(&mut self) {
+        fn min(values: &Vec<f32>) -> f32 {
+            values.iter().fold(f32::INFINITY, |a, &b| a.min(b))
+        }
+        fn max(values: &Vec<f32>) -> f32 {
+            values.iter().fold(f32::MIN, |a, &b| a.max(b))
+        }
+        let a = self.a.clone();
+        let b = self.b.clone();
+        let c = self.c.clone();
+        let min_x = min(&vec![a.x, b.x, c.x]);
+        let min_y = min(&vec![a.y, b.y, c.y]);
+        let max_x = max(&vec![a.x, b.x, c.x]);
+        let max_y = max(&vec![a.y, b.y, c.y]);
+
+        let aabb = Aabb {
+            min_x: min_x as f32,
+            min_y: min_y as f32,
+            max_x: max_x as f32,
+            max_y: max_y as f32,
+        };
+        self.aabb = aabb;
     }
 }
